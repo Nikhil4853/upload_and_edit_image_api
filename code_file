@@ -1,0 +1,120 @@
+imageRout file code
+
+
+
+const express = require('express');
+const router = express.Router();
+const { uploadImage, editImage,upload } = require('../controllers/imageController');
+
+// Upload endpoint
+router.post('/upload', upload.single('image'), uploadImage);
+
+// Edit endpoint
+router.put('/update/:id', upload.single('image'), editImage);
+
+module.exports = router;
+
+
+
+
+
+imageController File code
+
+
+
+
+const express = require('express');
+const router = express.Router();
+const MongoClient = require('mongodb').MongoClient;
+const { ObjectId } = require('mongodb');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Define destination function
+const destination = function (req, file, cb) {
+    const uploadDir = path.join(__dirname, "../../public/userImages");
+
+    // Check if directory exists, create it if not
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    cb(null, uploadDir);
+};
+
+// Define filename function
+const filename = function (req, file, cb) {
+    const name = Date.now() + "_" + file.originalname;
+    cb(null, name);
+};
+
+// Set up multer storage
+const storage = multer.diskStorage({
+    destination: destination,
+    filename: filename
+});
+
+const upload = multer({ storage: storage });
+
+const mongoURL = "mongodb://127.0.0.1:27017";
+const dbName = "myapp";
+
+// Upload function for image
+const uploadImage = async (req, res) => {
+    try {
+        // Check if file is uploaded
+        if (!req.file) {
+            return res.status(400).send('No file uploaded.');
+        }
+
+        const client = await MongoClient.connect(mongoURL);
+        const db = client.db(dbName);
+
+        // Insert image data into the database
+        const result = await db.collection("userImage").insertOne({
+            name: req.body.name,
+            contentType: req.file.mimetype,
+            image: req.file.filename // Use the file buffer directly
+        });
+
+        client.close();
+        res.status(201).send('Image uploaded successfully!');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Error uploading image.');
+    }
+};
+
+// Update function for image
+const editImage = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const client = await MongoClient.connect(mongoURL);
+        const db = client.db(dbName);
+
+        const existingImage = await db.collection("userImage").findOne({ _id:new ObjectId(id) });
+
+        if (!existingImage) {
+            client.close();
+            return res.status(404).send('Image not found.');
+        }
+
+        const updates = {};
+        if (req.body.name) updates.name = req.body.name;
+        if (req.file) {
+            updates.contentType = req.file.mimetype;
+            updates.image = req.file.filename;
+        }
+
+        await db.collection("userImage").updateOne({ _id:new ObjectId(id) }, { $set: updates });
+
+        client.close();
+        res.status(200).send('Image updated successfully!');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Error updating image.');
+    }
+};
+
+module.exports = { uploadImage, editImage, upload };
