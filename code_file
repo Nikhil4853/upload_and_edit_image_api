@@ -1,4 +1,4 @@
-imageRout file code
+//imageRout file code
 
 
 
@@ -18,7 +18,7 @@ module.exports = router;
 
 
 
-imageController File code
+//imageController File code
 
 
 
